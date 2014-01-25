@@ -17,16 +17,16 @@ import (
 func main() {
         s, err := redistest.NewRedisServer(nil)
         if err != nil {
-                t.Error("NewRedisServer is err:", err.Error())
+                panic(err)
         }
         defer s.Stop()
         conn, err := redis.Dial("unix", s.Config.UnixSocket)
         if err != nil {
-                t.Error("failed to connect to redis via unixscoket:", err.Error())
+                panic(err)
         }
         _, err = conn.Do("PING")
         if err != nil {
-                t.Error("failed to execute command:", err)
+                panic(err)
         }
 }
 ```
