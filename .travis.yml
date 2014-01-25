@@ -6,6 +6,6 @@ go:
   - tip
 
 before_script:
-  - go get -d -v
+  - go get github.com/garyburd/redigo/redis
 script:
   - go test -v
