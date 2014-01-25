@@ -184,11 +184,12 @@ OuterLoop:
 }
 
 func (server *RedisServer) Stop() error {
+	defer os.RemoveAll(server.TempDir)
 	// kill process
 	if err := server.killAndWait(); err != nil {
 		return err
 	}
-	return os.RemoveAll(server.TempDir)
+	return nil
 }
 
 func (server *RedisServer) killAndWait() error {
