@@ -10,24 +10,24 @@ redis-server runner for tests. ```go-test-redisserver``` is a port of [Test::Red
 package main
 
 import (
-	"github.com/soh335/go-test-redisserver"
-	"github.com/garyburd/redigo/redis"
+        "github.com/soh335/go-test-redisserver"
+        "github.com/garyburd/redigo/redis"
 )
 
 func main() {
-	s, err := redistest.NewRedisServer(nil)
-	if err != nil {
-		t.Error("NewRedisServer is err:", err.Error())
-	}
-	defer s.Stop()
-	conn, err := redis.Dial("unix", s.Config.UnixSocket)
-	if err != nil {
-		t.Error("failed to connect to redis via unixscoket:", err.Error())
-	}
-	_, err = conn.Do("PING")
-	if err != nil {
-		t.Error("failed to execute command:", err)
-	}
+        s, err := redistest.NewRedisServer(nil)
+        if err != nil {
+                t.Error("NewRedisServer is err:", err.Error())
+        }
+        defer s.Stop()
+        conn, err := redis.Dial("unix", s.Config.UnixSocket)
+        if err != nil {
+                t.Error("failed to connect to redis via unixscoket:", err.Error())
+        }
+        _, err = conn.Do("PING")
+        if err != nil {
+                t.Error("failed to execute command:", err)
+        }
 }
 ```
 
