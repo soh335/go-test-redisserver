@@ -7,7 +7,7 @@ redis-server runner for tests. ```go-test-redisserver``` is a port of [Test::Red
 ## USAGE
 
 ```go
-package redistest
+package main
 
 import (
 	"github.com/soh335/go-test-redisserver"
