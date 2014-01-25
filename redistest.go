@@ -168,7 +168,7 @@ OuterLoop:
 	}
 
 	if !ready {
-		if err := server.killAndStop(); err != nil {
+		if err := server.killAndWait(); err != nil {
 			return err
 		}
 		byt, err := ioutil.ReadFile(logfile.Name())
@@ -185,13 +185,13 @@ OuterLoop:
 
 func (server *RedisServer) Stop() error {
 	// kill process
-	if err := server.killAndStop(); err != nil {
+	if err := server.killAndWait(); err != nil {
 		return err
 	}
 	return os.RemoveAll(server.TempDir)
 }
 
-func (server *RedisServer) killAndStop() error {
+func (server *RedisServer) killAndWait() error {
 	if err := server.Cmd.Process.Kill(); err != nil {
 		return err
 	}
