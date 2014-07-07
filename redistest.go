@@ -14,7 +14,7 @@ import (
 
 type Server struct {
 	Config  Config
-	Cmd     *exec.Cmd
+	cmd     *exec.Cmd
 	TempDir string
 	TimeOut time.Duration
 }
@@ -97,7 +97,7 @@ func (server *Server) Start() error {
 	}
 
 	cmd := exec.Command(path, conffile.Name())
-	server.Cmd = cmd
+	server.cmd = cmd
 
 	//append to log stdout, stderr
 	appendLog := func(pipe io.Reader) {
@@ -171,10 +171,10 @@ func (server *Server) Stop() error {
 }
 
 func (server *Server) killAndWait() error {
-	if err := server.Cmd.Process.Kill(); err != nil {
+	if err := server.cmd.Process.Kill(); err != nil {
 		return err
 	}
-	if _, err := server.Cmd.Process.Wait(); err != nil {
+	if _, err := server.cmd.Process.Wait(); err != nil {
 		return err
 	}
 	return nil
