@@ -1,7 +1,6 @@
 package redistest
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -9,84 +8,72 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"time"
 )
 
-type RedisServer struct {
-	Config  *RedisServerConfig
+type Server struct {
+	Config  Config
 	Cmd     *exec.Cmd
 	TempDir string
+	TimeOut time.Duration
 }
 
-type RedisServerConfig struct {
-	TimeOut    time.Duration
-	AutoStart  bool
-	Port       string
-	Dir        string
-	LogLevel   string
-	UnixSocket string
-}
+type Config map[string]string
 
-func NewRedisServerConfig() *RedisServerConfig {
-	return &RedisServerConfig{AutoStart: true, TimeOut: 3 * time.Second}
-}
-
-func (config *RedisServerConfig) Bytes() []byte {
-	var buf bytes.Buffer
-	v := reflect.ValueOf(config).Elem()
-	for i := 0; i < v.NumField(); i++ {
-		keyField := v.Type().Field(i)
-		valueField := v.Field(i)
-		switch keyField.Name {
-		case "Port", "Dir", "LogLevel", "UnixSocket":
-			// empty string
-			if valueField.Len() > 0 {
-				buf.WriteString(fmt.Sprintf("%s %s\n", bytes.ToLower([]byte(keyField.Name)), valueField.String()))
-			}
+func (config Config) Write(wc io.Writer) error {
+	for key, value := range config {
+		if _, err := fmt.Fprintf(wc, "%s %s\n", key, value); err != nil {
+			return err
 		}
 	}
-	return buf.Bytes()
+	return nil
 }
 
-func NewRedisServer(config *RedisServerConfig) (*RedisServer, error) {
-	redisServer := new(RedisServer)
+func NewServer(autostart bool, config Config) (*Server, error) {
+	server := new(Server)
+
 	if config == nil {
-		config = NewRedisServerConfig()
+		config = Config{}
 	}
-	redisServer.Config = config
 
 	dir, err := ioutil.TempDir("", "redistest")
 	if err != nil {
 		return nil, err
 	}
-	redisServer.TempDir = dir
+	server.TempDir = dir
 
-	if config.Dir == "" {
-		config.Dir = redisServer.TempDir
+	server.TimeOut = time.Second * 3
+
+	if _, ok := config["dir"]; !ok {
+		config["dir"] = server.TempDir
 	}
 
-	if config.LogLevel == "warning" {
+	if config["loglevel"] == "warning" {
 		fmt.Println(`redistest does not support "loglevel warning", using "notice" instead.`)
-		config.LogLevel = "notice"
+		config["loglevel"] = "notice"
 	}
 
-	if config.Port == "" && config.UnixSocket == "" {
-		config.UnixSocket = filepath.Join(redisServer.TempDir, "redis.sock")
-		config.Port = "0"
+	_, hasPort := config["port"]
+	_, hasUnixSocket := config["unixsocket"]
+
+	if !hasPort && !hasUnixSocket {
+		config["port"] = "0"
+		config["unixsocket"] = filepath.Join(server.TempDir, "redis.sock")
 	}
 
-	if config.AutoStart {
-		if err := redisServer.Start(); err != nil {
+	server.Config = config
+
+	if autostart {
+		if err := server.Start(); err != nil {
 			return nil, err
 		}
 	}
 
-	return redisServer, nil
+	return server, nil
 }
 
-func (server *RedisServer) Start() error {
+func (server *Server) Start() error {
 	conffile, err := os.OpenFile(
 		filepath.Join(server.TempDir, "redis.conf"),
 		os.O_RDWR|os.O_CREATE|os.O_EXCL,
@@ -98,7 +85,11 @@ func (server *RedisServer) Start() error {
 		return err
 	}
 
-	if _, err := conffile.Write(server.Config.Bytes()); err != nil {
+	if err := server.Config.Write(conffile); err != nil {
+		return err
+	}
+
+	if err := conffile.Close(); err != nil {
 		return err
 	}
 
@@ -146,7 +137,7 @@ func (server *RedisServer) Start() error {
 	}
 
 	// check server is launced ?
-	timer := time.After(server.Config.TimeOut)
+	timer := time.After(server.TimeOut)
 	r := regexp.MustCompile("The server is now ready to accept connections")
 	ready := false
 OuterLoop:
@@ -183,7 +174,7 @@ OuterLoop:
 	return nil
 }
 
-func (server *RedisServer) Stop() error {
+func (server *Server) Stop() error {
 	defer os.RemoveAll(server.TempDir)
 	// kill process
 	if err := server.killAndWait(); err != nil {
@@ -192,7 +183,7 @@ func (server *RedisServer) Stop() error {
 	return nil
 }
 
-func (server *RedisServer) killAndWait() error {
+func (server *Server) killAndWait() error {
 	if err := server.Cmd.Process.Kill(); err != nil {
 		return err
 	}
