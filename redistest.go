@@ -124,41 +124,7 @@ func (server *Server) Start() error {
 	}
 
 	// check server is launced ?
-	timer := time.After(server.TimeOut)
-	r := regexp.MustCompile("The server is now ready to accept connections")
-	ready := false
-OuterLoop:
-	for {
-		select {
-		case <-timer:
-			break OuterLoop
-		default:
-			byt, err := ioutil.ReadFile(logfile.Name())
-			if err != nil {
-				return err
-			}
-			if r.Match(byt) {
-				ready = true
-				break OuterLoop
-			}
-			time.Sleep(time.Millisecond * 100)
-		}
-	}
-
-	if !ready {
-		if err := server.killAndWait(); err != nil {
-			return err
-		}
-		byt, err := ioutil.ReadFile(logfile.Name())
-		if err != nil {
-			return err
-		}
-		return errors.New(
-			fmt.Sprintf("%s\n%s", "*** failed to launch redis-server ***", string(byt)),
-		)
-	}
-
-	return nil
+	return server.checkLaunch(logfile.Name())
 }
 
 func (server *Server) Stop() error {
@@ -197,4 +163,42 @@ func (server *Server) createConfigFile() (*os.File, error) {
 	}
 
 	return conffile, nil
+}
+
+func (server *Server) checkLaunch(logfile string) error {
+	timer := time.After(server.TimeOut)
+	r := regexp.MustCompile("The server is now ready to accept connections")
+	ready := false
+OuterLoop:
+	for {
+		select {
+		case <-timer:
+			break OuterLoop
+		default:
+			byt, err := ioutil.ReadFile(logfile)
+			if err != nil {
+				return err
+			}
+			if r.Match(byt) {
+				ready = true
+				break OuterLoop
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+
+	if !ready {
+		if err := server.killAndWait(); err != nil {
+			return err
+		}
+		byt, err := ioutil.ReadFile(logfile)
+		if err != nil {
+			return err
+		}
+		return errors.New(
+			fmt.Sprintf("%s\n%s", "*** failed to launch redis-server ***", string(byt)),
+		)
+	}
+
+	return nil
 }
