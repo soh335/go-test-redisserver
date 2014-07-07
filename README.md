@@ -15,12 +15,12 @@ import (
 )
 
 func main() {
-        s, err := redistest.NewRedisServer(nil)
+        s, err := redistest.NewServer(nil)
         if err != nil {
                 panic(err)
         }
         defer s.Stop()
-        conn, err := redis.Dial("unix", s.Config.UnixSocket)
+        conn, err := redis.Dial("unix", s.Config["unixsocket"])
         if err != nil {
                 panic(err)
         }
