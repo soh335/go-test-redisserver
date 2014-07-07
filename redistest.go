@@ -14,7 +14,7 @@ import (
 
 type Server struct {
 	Config  Config
-	Cmd     *exec.Cmd
+	cmd     *exec.Cmd
 	TempDir string
 	TimeOut time.Duration
 }
@@ -74,22 +74,9 @@ func NewServer(autostart bool, config Config) (*Server, error) {
 }
 
 func (server *Server) Start() error {
-	conffile, err := os.OpenFile(
-		filepath.Join(server.TempDir, "redis.conf"),
-		os.O_RDWR|os.O_CREATE|os.O_EXCL,
-		0755,
-	)
-	defer conffile.Close()
 
+	conffile, err := server.createConfigFile()
 	if err != nil {
-		return err
-	}
-
-	if err := server.Config.Write(conffile); err != nil {
-		return err
-	}
-
-	if err := conffile.Close(); err != nil {
 		return err
 	}
 
@@ -110,7 +97,7 @@ func (server *Server) Start() error {
 	}
 
 	cmd := exec.Command(path, conffile.Name())
-	server.Cmd = cmd
+	server.cmd = cmd
 
 	//append to log stdout, stderr
 	appendLog := func(pipe io.Reader) {
@@ -137,6 +124,48 @@ func (server *Server) Start() error {
 	}
 
 	// check server is launced ?
+	return server.checkLaunch(logfile.Name())
+}
+
+func (server *Server) Stop() error {
+	defer os.RemoveAll(server.TempDir)
+	// kill process
+	if err := server.killAndWait(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (server *Server) killAndWait() error {
+	if err := server.cmd.Process.Kill(); err != nil {
+		return err
+	}
+	if _, err := server.cmd.Process.Wait(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (server *Server) createConfigFile() (*os.File, error) {
+	conffile, err := os.OpenFile(
+		filepath.Join(server.TempDir, "redis.conf"),
+		os.O_RDWR|os.O_CREATE|os.O_EXCL,
+		0755,
+	)
+	defer conffile.Close()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := server.Config.Write(conffile); err != nil {
+		return nil, err
+	}
+
+	return conffile, nil
+}
+
+func (server *Server) checkLaunch(logfile string) error {
 	timer := time.After(server.TimeOut)
 	r := regexp.MustCompile("The server is now ready to accept connections")
 	ready := false
@@ -146,7 +175,7 @@ OuterLoop:
 		case <-timer:
 			break OuterLoop
 		default:
-			byt, err := ioutil.ReadFile(logfile.Name())
+			byt, err := ioutil.ReadFile(logfile)
 			if err != nil {
 				return err
 			}
@@ -162,7 +191,7 @@ OuterLoop:
 		if err := server.killAndWait(); err != nil {
 			return err
 		}
-		byt, err := ioutil.ReadFile(logfile.Name())
+		byt, err := ioutil.ReadFile(logfile)
 		if err != nil {
 			return err
 		}
@@ -171,24 +200,5 @@ OuterLoop:
 		)
 	}
 
-	return nil
-}
-
-func (server *Server) Stop() error {
-	defer os.RemoveAll(server.TempDir)
-	// kill process
-	if err := server.killAndWait(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (server *Server) killAndWait() error {
-	if err := server.Cmd.Process.Kill(); err != nil {
-		return err
-	}
-	if _, err := server.Cmd.Process.Wait(); err != nil {
-		return err
-	}
 	return nil
 }
