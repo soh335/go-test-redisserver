@@ -74,22 +74,9 @@ func NewServer(autostart bool, config Config) (*Server, error) {
 }
 
 func (server *Server) Start() error {
-	conffile, err := os.OpenFile(
-		filepath.Join(server.TempDir, "redis.conf"),
-		os.O_RDWR|os.O_CREATE|os.O_EXCL,
-		0755,
-	)
-	defer conffile.Close()
 
+	conffile, err := server.createConfigFile()
 	if err != nil {
-		return err
-	}
-
-	if err := server.Config.Write(conffile); err != nil {
-		return err
-	}
-
-	if err := conffile.Close(); err != nil {
 		return err
 	}
 
@@ -191,4 +178,23 @@ func (server *Server) killAndWait() error {
 		return err
 	}
 	return nil
+}
+
+func (server *Server) createConfigFile() (*os.File, error) {
+	conffile, err := os.OpenFile(
+		filepath.Join(server.TempDir, "redis.conf"),
+		os.O_RDWR|os.O_CREATE|os.O_EXCL,
+		0755,
+	)
+	defer conffile.Close()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := server.Config.Write(conffile); err != nil {
+		return nil, err
+	}
+
+	return conffile, nil
 }
