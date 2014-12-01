@@ -1,3 +1,18 @@
+// Package redistest privides temporary redis-server for testing.
+//
+//	s, err := redistest.NewServer(nil)
+//	if err != nil {
+//		panic(err)
+//	}
+//	defer s.Stop()
+//	conn, err := redis.Dial("unix", s.Config["unixsocket"])
+//	if err != nil {
+//		panic(err)
+//	}
+//	_, err = conn.Do("PING")
+//	if err != nil {
+//		panic(err)
+//	}
 package redistest
 
 import (
@@ -12,6 +27,7 @@ import (
 	"time"
 )
 
+// Server is main struct of redistest.
 type Server struct {
 	Config  Config
 	cmd     *exec.Cmd
@@ -19,6 +35,7 @@ type Server struct {
 	TimeOut time.Duration
 }
 
+// Config is configuration of redis-server.
 type Config map[string]string
 
 func (config Config) Write(wc io.Writer) error {
@@ -30,6 +47,7 @@ func (config Config) Write(wc io.Writer) error {
 	return nil
 }
 
+// NewServer create a new Server. If autostart is true, launch redis-server.
 func NewServer(autostart bool, config Config) (*Server, error) {
 	server := new(Server)
 
@@ -73,6 +91,7 @@ func NewServer(autostart bool, config Config) (*Server, error) {
 	return server, nil
 }
 
+// Start start redis-server.
 func (server *Server) Start() error {
 
 	conffile, err := server.createConfigFile()
@@ -127,6 +146,7 @@ func (server *Server) Start() error {
 	return server.checkLaunch(logfile.Name())
 }
 
+// Stop stop redis-server
 func (server *Server) Stop() error {
 	defer os.RemoveAll(server.TempDir)
 	// kill process
