@@ -1,5 +1,7 @@
 // Package redistest privides temporary redis-server for testing.
 //
+// This is basic usage of redistest.
+//
 //	s, err := redistest.NewServer(nil)
 //	if err != nil {
 //		panic(err)
@@ -47,7 +49,8 @@ func (config Config) write(wc io.Writer) error {
 	return nil
 }
 
-// NewServer create a new Server. If autostart is true, launch redis-server.
+// NewServer create a new Server.
+// If config is nil, redistest use default value. It means use unixsocket, dir is random.
 func NewServer(autostart bool, config Config) (*Server, error) {
 	server := new(Server)
 
