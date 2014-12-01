@@ -12,7 +12,7 @@ func TestConfig(t *testing.T) {
 	{
 		var b bytes.Buffer
 		config := Config{}
-		config.Write(&b)
+		config.write(&b)
 		expect := ""
 		if b.String() != expect {
 			t.Error("config should be:", expect)
@@ -22,7 +22,7 @@ func TestConfig(t *testing.T) {
 	{
 		var b bytes.Buffer
 		config := Config{"dir": "/path/to/example", "port": "0"}
-		config.Write(&b)
+		config.write(&b)
 		expect := "dir /path/to/example\nport 0\n"
 		if b.String() != expect {
 			t.Error("config should be:", expect)

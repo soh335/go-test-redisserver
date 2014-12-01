@@ -38,7 +38,7 @@ type Server struct {
 // Config is configuration of redis-server.
 type Config map[string]string
 
-func (config Config) Write(wc io.Writer) error {
+func (config Config) write(wc io.Writer) error {
 	for key, value := range config {
 		if _, err := fmt.Fprintf(wc, "%s %s\n", key, value); err != nil {
 			return err
@@ -178,7 +178,7 @@ func (server *Server) createConfigFile() (*os.File, error) {
 		return nil, err
 	}
 
-	if err := server.Config.Write(conffile); err != nil {
+	if err := server.Config.write(conffile); err != nil {
 		return nil, err
 	}
 
