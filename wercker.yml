@@ -24,6 +24,14 @@ build:
   steps:
     # Sets the go workspace and places you package
     # at the right place in the workspace tree
+    - script:
+        name: install packages
+        code: |
+          sudo apt-get install python-software-properties
+          sudo add-apt-repository ppa:chris-lea/redis-server -y
+          sudo apt-get update
+          sudo apt-get install redis-server
+
     - setup-go-workspace
 
     # Gets the dependencies
