@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-        s, err := redistest.NewServer(nil)
+        s, err := redistest.NewServer(true, nil)
         if err != nil {
                 panic(err)
         }

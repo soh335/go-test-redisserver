@@ -2,7 +2,7 @@
 //
 // This is basic usage of redistest.
 //
-//	s, err := redistest.NewServer(nil)
+//	s, err := redistest.NewServer(true, nil)
 //	if err != nil {
 //		panic(err)
 //	}
