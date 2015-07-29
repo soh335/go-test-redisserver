@@ -2,9 +2,10 @@ package redistest
 
 import (
 	"bytes"
-	"github.com/garyburd/redigo/redis"
 	"net"
 	"testing"
+
+	"github.com/garyburd/redigo/redis"
 )
 
 func TestConfig(t *testing.T) {
@@ -15,7 +16,7 @@ func TestConfig(t *testing.T) {
 		config.write(&b)
 		expect := ""
 		if b.String() != expect {
-			t.Error("config should be:", expect)
+			t.Errorf("config should be: %s but got %s", expect, b.String())
 		}
 	}
 
@@ -25,7 +26,7 @@ func TestConfig(t *testing.T) {
 		config.write(&b)
 		expect := "dir /path/to/example\nport 0\n"
 		if b.String() != expect {
-			t.Error("config should be:", expect)
+			t.Errorf("config should be: %s but got %s", expect, b.String())
 		}
 	}
 }

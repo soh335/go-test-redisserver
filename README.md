@@ -1,6 +1,6 @@
 # go-test-redisserver
 
-[![Build Status](https://travis-ci.org/soh335/go-test-redisserver.png?branch=master)](https://travis-ci.org/soh335/go-test-redisserver)
+[![wercker status](https://app.wercker.com/status/4d86265b7931cc35d0fbca3266df6815/s/master "wercker status")](https://app.wercker.com/project/bykey/4d86265b7931cc35d0fbca3266df6815)
 [![GoDoc](https://godoc.org/github.com/soh335/go-test-redisserver?status.svg)](https://godoc.org/github.com/soh335/go-test-redisserver)
 
 redis-server runner for tests. ```go-test-redisserver``` is a port of [Test::RedisServer](https://github.com/typester/Test-RedisServer).
