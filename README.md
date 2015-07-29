@@ -32,6 +32,10 @@ func main() {
 }
 ```
 
+## LICENSE
+
+* MIT
+
 ## SEE ALSO
 
 * [Test::RedisServer](https://github.com/typester/Test-RedisServer)
