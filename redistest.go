@@ -18,14 +18,16 @@
 package redistest
 
 import (
-	"errors"
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
+	"strings"
 	"time"
 )
 
@@ -102,43 +104,18 @@ func (server *Server) Start() error {
 		return err
 	}
 
-	logfile, err := os.OpenFile(
-		filepath.Join(server.TempDir, "redis-server.log"),
-		os.O_RDWR|os.O_CREATE|os.O_EXCL,
-		0755,
-	)
-	defer logfile.Close()
-
-	if err != nil {
-		return err
-	}
-
 	path, err := exec.LookPath("redis-server")
 	if err != nil {
 		return err
 	}
 
+	buf := new(bytes.Buffer)
+	reader, writer := io.Pipe()
+	log := io.MultiWriter(buf, writer)
 	cmd := exec.Command(path, conffile.Name())
+	cmd.Stderr = log
+	cmd.Stdout = log
 	server.cmd = cmd
-
-	//append to log stdout, stderr
-	appendLog := func(pipe io.Reader) {
-		_, err := io.Copy(logfile, pipe)
-		if err != nil {
-			fmt.Println("err", err)
-		}
-	}
-	if stdout, err := cmd.StdoutPipe(); err == nil {
-		go appendLog(stdout)
-	} else {
-		return err
-	}
-
-	if stderr, err := cmd.StderrPipe(); err == nil {
-		go appendLog(stderr)
-	} else {
-		return err
-	}
 
 	// start
 	if err := cmd.Start(); err != nil {
@@ -146,7 +123,7 @@ func (server *Server) Start() error {
 	}
 
 	// check server is launced ?
-	return server.checkLaunch(logfile.Name())
+	return server.checkLaunch(buf, reader)
 }
 
 // Stop stop redis-server
@@ -188,39 +165,36 @@ func (server *Server) createConfigFile() (*os.File, error) {
 	return conffile, nil
 }
 
-func (server *Server) checkLaunch(logfile string) error {
-	timer := time.After(server.TimeOut)
-	r := regexp.MustCompile("The server is now ready to accept connections")
-	ready := false
-OuterLoop:
-	for {
-		select {
-		case <-timer:
-			break OuterLoop
-		default:
-			byt, err := ioutil.ReadFile(logfile)
-			if err != nil {
-				return err
+func (server *Server) checkLaunch(buf *bytes.Buffer, r io.Reader) error {
+	done := make(chan struct{})
+	go func() {
+		// wait until the server is ready
+		s := bufio.NewScanner(r)
+		for s.Scan() {
+			idx := strings.Index(s.Text(), "The server is now ready to accept connections")
+			if idx >= 0 {
+				close(done)
+				break
 			}
-			if r.Match(byt) {
-				ready = true
-				break OuterLoop
-			}
-			time.Sleep(time.Millisecond * 100)
 		}
-	}
 
-	if !ready {
-		if err := server.killAndWait(); err != nil {
+		// ignore other logs
+		for s.Scan() {
+		}
+		if err := s.Err(); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	select {
+	case <-done:
+		// The server is now ready to accept connections
+	case <-time.After(server.TimeOut):
+		// timeout
+		if err := server.Stop(); err != nil {
 			return err
 		}
-		byt, err := ioutil.ReadFile(logfile)
-		if err != nil {
-			return err
-		}
-		return errors.New(
-			fmt.Sprintf("%s\n%s", "*** failed to launch redis-server ***", string(byt)),
-		)
+		return fmt.Errorf("%s\n%s", "*** failed to launch redis-server ***", buf.String())
 	}
 
 	return nil
