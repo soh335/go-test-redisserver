@@ -20,6 +20,7 @@ package redistest
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -49,6 +50,22 @@ func (config Config) write(wc io.Writer) error {
 		}
 	}
 	return nil
+}
+
+// Error is error while starting redis
+type Error struct {
+	Err error
+	Log string
+}
+
+func (err *Error) Error() string {
+	return err.Err.Error() + "\n" + err.Log
+}
+
+// Cause returns the underlying cause of the error.
+// The error can be inspected by errors.Cause https://github.com/pkg/errors
+func (err *Error) Cause() error {
+	return err.Err
 }
 
 // NewServer create a new Server.
@@ -123,7 +140,10 @@ func (server *Server) Start() error {
 	}
 
 	// check server is launced ?
-	return server.checkLaunch(buf, reader)
+	if err := server.checkLaunch(reader); err != nil {
+		return &Error{Err: err, Log: buf.String()}
+	}
+	return nil
 }
 
 // Stop stop redis-server
@@ -165,7 +185,7 @@ func (server *Server) createConfigFile() (*os.File, error) {
 	return conffile, nil
 }
 
-func (server *Server) checkLaunch(buf *bytes.Buffer, r io.Reader) error {
+func (server *Server) checkLaunch(r io.Reader) error {
 	done := make(chan struct{})
 	go func() {
 		// wait until the server is ready
@@ -194,7 +214,7 @@ func (server *Server) checkLaunch(buf *bytes.Buffer, r io.Reader) error {
 		if err := server.Stop(); err != nil {
 			return err
 		}
-		return fmt.Errorf("%s\n%s", "*** failed to launch redis-server ***", buf.String())
+		return errors.New("*** failed to launch redis-server ***")
 	}
 
 	return nil
