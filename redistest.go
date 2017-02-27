@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +37,8 @@ type Server struct {
 	cmd     *exec.Cmd
 	TempDir string
 	TimeOut time.Duration
+	reader  io.ReadCloser
+	writer  io.WriteCloser
 }
 
 // Config is configuration of redis-server.
@@ -127,8 +128,8 @@ func (server *Server) Start() error {
 	}
 
 	buf := new(bytes.Buffer)
-	reader, writer := io.Pipe()
-	log := io.MultiWriter(buf, writer)
+	server.reader, server.writer = io.Pipe()
+	log := io.MultiWriter(buf, server.writer)
 	cmd := exec.Command(path, conffile.Name())
 	cmd.Stderr = log
 	cmd.Stdout = log
@@ -140,7 +141,7 @@ func (server *Server) Start() error {
 	}
 
 	// check server is launced ?
-	if err := server.checkLaunch(reader); err != nil {
+	if err := server.checkLaunch(server.reader); err != nil {
 		return &Error{Err: err, Log: buf.String()}
 	}
 	return nil
@@ -152,6 +153,16 @@ func (server *Server) Stop() error {
 	// kill process
 	if err := server.killAndWait(); err != nil {
 		return err
+	}
+	if server.writer != nil {
+		if err := server.writer.Close(); err != nil {
+			return err
+		}
+	}
+	if server.reader != nil {
+		if err := server.reader.Close(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -201,8 +212,12 @@ func (server *Server) checkLaunch(r io.Reader) error {
 		// ignore other logs
 		for s.Scan() {
 		}
-		if err := s.Err(); err != nil {
-			log.Println(err)
+
+		type closer interface {
+			CloseWithError(err error) error
+		}
+		if r, ok := r.(closer); ok {
+			r.CloseWithError(s.Err())
 		}
 	}()
 

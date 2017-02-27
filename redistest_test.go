@@ -36,7 +36,11 @@ func TestConnectRedisViaUnixScoket(t *testing.T) {
 	if err != nil {
 		t.Fatal("NewServer is err:", err.Error())
 	}
-	defer s.Stop()
+	defer func() {
+		if err := s.Stop(); err != nil {
+			t.Fatal("failed to stop", err)
+		}
+	}()
 
 	t.Log("unixsocket:", s.Config["unixsocket"])
 	conn, err := redis.Dial("unix", s.Config["unixsocket"])
@@ -73,7 +77,11 @@ func TestConnectRedisViaTCP(t *testing.T) {
 	if err != nil {
 		t.Fatal("NewServer is err:", err.Error())
 	}
-	defer s.Stop()
+	defer func() {
+		if err := s.Stop(); err != nil {
+			t.Fatal("failed to stop", err)
+		}
+	}()
 
 	conn, err := redis.Dial("tcp", net.JoinHostPort("127.0.0.1", port))
 	if err != nil {
@@ -104,7 +112,11 @@ func TestAutoStart(t *testing.T) {
 	if err := s.Start(); err != nil {
 		t.Fatal("failed to start", err)
 	}
-	defer s.Stop()
+	defer func() {
+		if err := s.Stop(); err != nil {
+			t.Fatal("failed to stop", err)
+		}
+	}()
 
 	conn, err := redis.Dial("unix", s.Config["unixsocket"])
 	if err != nil {
