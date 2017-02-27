@@ -178,7 +178,11 @@ func (server *Server) killAndWait() error {
 	if err := server.cmd.Process.Kill(); err != nil {
 		return err
 	}
-	if _, err := server.cmd.Process.Wait(); err != nil {
+	if err := server.cmd.Wait(); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			// err may be "signal: killed". ignore it.
+			return nil
+		}
 		return err
 	}
 	return nil
