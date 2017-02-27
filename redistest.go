@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -45,7 +46,13 @@ type Server struct {
 type Config map[string]string
 
 func (config Config) write(wc io.Writer) error {
-	for key, value := range config {
+	keys := make([]string, 0, len(config))
+	for key := range config {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		value := config[key]
 		if _, err := fmt.Fprintf(wc, "%s %s\n", key, value); err != nil {
 			return err
 		}
