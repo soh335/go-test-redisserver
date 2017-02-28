@@ -18,6 +18,8 @@
 package redistest
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -25,7 +27,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -35,18 +38,42 @@ type Server struct {
 	cmd     *exec.Cmd
 	TempDir string
 	TimeOut time.Duration
+	reader  io.ReadCloser
+	writer  io.WriteCloser
 }
 
 // Config is configuration of redis-server.
 type Config map[string]string
 
 func (config Config) write(wc io.Writer) error {
-	for key, value := range config {
+	keys := make([]string, 0, len(config))
+	for key := range config {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		value := config[key]
 		if _, err := fmt.Fprintf(wc, "%s %s\n", key, value); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// Error is error while starting redis
+type Error struct {
+	Err error
+	Log string
+}
+
+func (err *Error) Error() string {
+	return err.Err.Error() + "\n" + err.Log
+}
+
+// Cause returns the underlying cause of the error.
+// The error can be inspected by errors.Cause https://github.com/pkg/errors
+func (err *Error) Cause() error {
+	return err.Err
 }
 
 // NewServer create a new Server.
@@ -102,43 +129,18 @@ func (server *Server) Start() error {
 		return err
 	}
 
-	logfile, err := os.OpenFile(
-		filepath.Join(server.TempDir, "redis-server.log"),
-		os.O_RDWR|os.O_CREATE|os.O_EXCL,
-		0755,
-	)
-	defer logfile.Close()
-
-	if err != nil {
-		return err
-	}
-
 	path, err := exec.LookPath("redis-server")
 	if err != nil {
 		return err
 	}
 
+	buf := new(bytes.Buffer)
+	server.reader, server.writer = io.Pipe()
+	log := io.MultiWriter(buf, server.writer)
 	cmd := exec.Command(path, conffile.Name())
+	cmd.Stderr = log
+	cmd.Stdout = log
 	server.cmd = cmd
-
-	//append to log stdout, stderr
-	appendLog := func(pipe io.Reader) {
-		_, err := io.Copy(logfile, pipe)
-		if err != nil {
-			fmt.Println("err", err)
-		}
-	}
-	if stdout, err := cmd.StdoutPipe(); err == nil {
-		go appendLog(stdout)
-	} else {
-		return err
-	}
-
-	if stderr, err := cmd.StderrPipe(); err == nil {
-		go appendLog(stderr)
-	} else {
-		return err
-	}
 
 	// start
 	if err := cmd.Start(); err != nil {
@@ -146,7 +148,10 @@ func (server *Server) Start() error {
 	}
 
 	// check server is launced ?
-	return server.checkLaunch(logfile.Name())
+	if err := server.checkLaunch(server.reader); err != nil {
+		return &Error{Err: err, Log: buf.String()}
+	}
+	return nil
 }
 
 // Stop stop redis-server
@@ -156,6 +161,16 @@ func (server *Server) Stop() error {
 	if err := server.killAndWait(); err != nil {
 		return err
 	}
+	if server.writer != nil {
+		if err := server.writer.Close(); err != nil {
+			return err
+		}
+	}
+	if server.reader != nil {
+		if err := server.reader.Close(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -163,7 +178,11 @@ func (server *Server) killAndWait() error {
 	if err := server.cmd.Process.Kill(); err != nil {
 		return err
 	}
-	if _, err := server.cmd.Process.Wait(); err != nil {
+	if err := server.cmd.Wait(); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			// err may be "signal: killed". ignore it.
+			return nil
+		}
 		return err
 	}
 	return nil
@@ -188,39 +207,40 @@ func (server *Server) createConfigFile() (*os.File, error) {
 	return conffile, nil
 }
 
-func (server *Server) checkLaunch(logfile string) error {
-	timer := time.After(server.TimeOut)
-	r := regexp.MustCompile("The server is now ready to accept connections")
-	ready := false
-OuterLoop:
-	for {
-		select {
-		case <-timer:
-			break OuterLoop
-		default:
-			byt, err := ioutil.ReadFile(logfile)
-			if err != nil {
-				return err
+func (server *Server) checkLaunch(r io.Reader) error {
+	done := make(chan struct{})
+	go func() {
+		// wait until the server is ready
+		s := bufio.NewScanner(r)
+		for s.Scan() {
+			idx := strings.Index(s.Text(), "The server is now ready to accept connections")
+			if idx >= 0 {
+				close(done)
+				break
 			}
-			if r.Match(byt) {
-				ready = true
-				break OuterLoop
-			}
-			time.Sleep(time.Millisecond * 100)
 		}
-	}
 
-	if !ready {
-		if err := server.killAndWait(); err != nil {
+		// ignore other logs
+		for s.Scan() {
+		}
+
+		type closer interface {
+			CloseWithError(err error) error
+		}
+		if r, ok := r.(closer); ok {
+			r.CloseWithError(s.Err())
+		}
+	}()
+
+	select {
+	case <-done:
+		// The server is now ready to accept connections
+	case <-time.After(server.TimeOut):
+		// timeout
+		if err := server.Stop(); err != nil {
 			return err
 		}
-		byt, err := ioutil.ReadFile(logfile)
-		if err != nil {
-			return err
-		}
-		return errors.New(
-			fmt.Sprintf("%s\n%s", "*** failed to launch redis-server ***", string(byt)),
-		)
+		return errors.New("*** failed to launch redis-server ***")
 	}
 
 	return nil
