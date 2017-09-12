@@ -27,8 +27,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -209,12 +209,13 @@ func (server *Server) createConfigFile() (*os.File, error) {
 
 func (server *Server) checkLaunch(r io.Reader) error {
 	done := make(chan struct{})
+	reg := regexp.MustCompile("[Rr]eady to accept connections")
+
 	go func() {
 		// wait until the server is ready
 		s := bufio.NewScanner(r)
 		for s.Scan() {
-			idx := strings.Index(s.Text(), "The server is now ready to accept connections")
-			if idx >= 0 {
+			if reg.Match(s.Bytes()) {
 				close(done)
 				break
 			}
