@@ -207,9 +207,10 @@ func (server *Server) createConfigFile() (*os.File, error) {
 	return conffile, nil
 }
 
+var reg = regexp.MustCompile("[Rr]eady to accept connections")
+
 func (server *Server) checkLaunch(r io.Reader) error {
 	done := make(chan struct{})
-	reg := regexp.MustCompile("[Rr]eady to accept connections")
 
 	go func() {
 		// wait until the server is ready
